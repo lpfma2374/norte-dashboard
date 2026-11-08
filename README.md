@@ -11,7 +11,7 @@ com os KPIs da região no header.
 | Camada | Tecnologia | Notas |
 |---|---|---|
 | Frontend | **HTML + CSS + JavaScript puro** (sem build) | Estilo igual ao LeadSeeker (Apple, azul `#0071e3`). PDFs das atas gerados no browser com jsPDF. |
-| API | **Vercel Serverless Functions** (Node 20, zero dependências em produção) | Falam com o D1 pela API HTTP da Cloudflare, sempre com queries parametrizadas. |
+| API | **Vercel Serverless Functions** (Node 24, zero dependências em produção) | Falam com o D1 pela API HTTP da Cloudflare, sempre com queries parametrizadas. |
 | Base de dados | **Cloudflare D1** `norte-dashboard-db` | Gestão de conta: `accounts`, `contacts`, `deals`, `account_plans`, `satisfaction`, `pipeline_links`, `settings` (ver `db/schema.sql`). |
 | Empresas e decisores | **Cloudflare D1** `leadseeker-db` | Tabelas `companies` (`region = 'Norte'`, 100 empresas) e `decision_makers`. Fonte única partilhada com o LeadSeeker. |
 | Pipeline | **Cloudflare D1** `presales-db` (app PACE, pipeline.luispedroalvim.dev) | Só leitura. Propostas associadas às empresas pelo nome do cliente, com correção manual. |
