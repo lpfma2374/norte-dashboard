@@ -513,10 +513,13 @@
           var role = p.current_title || p.headline || p.role_category;
           return '<div class="item"><div class="body"><div class="t">' + txt(p.full_name) + '</div><div class="m">' +
             (role ? '<span class="tag plain">' + esc(role) + '</span>' : '') +
-            (p.email ? '<a class="tag plain" href="mailto:' + esc(p.email) + '">' + esc(p.email) + '</a>' : '') + '</div></div>' +
+            (p.email ? '<a class="tag plain" href="mailto:' + esc(p.email) + '">' + esc(p.email) + '</a>' : '') +
+            (!p.linkedin_url && p.source_url ? '<span class="tag plain grey">Fonte oficial</span>' : '') + '</div></div>' +
             (p.linkedin_url
               ? '<a class="ic" href="' + esc(p.linkedin_url) + '" target="_blank" rel="noopener noreferrer" title="Abrir perfil público no LinkedIn" aria-label="Abrir perfil público no LinkedIn">' + ICON.eye + '</a>'
-              : '<span class="ic" aria-disabled="true" title="Sem perfil LinkedIn">' + ICON.eye + '</span>') + '</div>';
+              : p.source_url
+                ? '<a class="ic" href="' + esc(p.source_url) + '" target="_blank" rel="noopener noreferrer" title="Sem LinkedIn: abrir a fonte pública" aria-label="Abrir a fonte pública">' + ICON.eye + '</a>'
+                : '<span class="ic" aria-disabled="true" title="Sem perfil LinkedIn">' + ICON.eye + '</span>') + '</div>';
         }).join('') : '<div class="empty">Sem decisores mapeados.</div>'));
     }).catch(function (er) { setSheet(e, '<div class="empty">' + esc(er.message) + '</div>'); });
   }

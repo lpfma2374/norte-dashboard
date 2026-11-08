@@ -174,6 +174,9 @@ describe('decisores e anexos', () => {
     expect(r.body.decision_makers[0].linkedin_url).toBeNull();
     const e = await call('decision-makers', 'GET', '/api/decision-makers?company_id=pt-norte-01');
     expect(e.body.decision_makers.map((d) => d.full_name)).toEqual(['Ana Exemplo', 'Rui Teste']);
+    const u = await call('decision-makers', 'GET', '/api/decision-makers?company_id=pt-norte-27');
+    expect(u.body.decision_makers[0].source_url).toBe('https://www.hospitaldebraga.pt/noticias/x');
+    expect(u.body.decision_makers[0].about).toBeUndefined();
   });
   it('carrega anexo para o R2 e devolve URL assinado', async () => {
     const up = await call('files', 'POST', '/api/files', { company_id: 'pt-norte-01', name: 'Ata reunião.pdf', type: 'application/pdf', data: Buffer.from('%PDF').toString('base64') });

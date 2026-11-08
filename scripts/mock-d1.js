@@ -14,7 +14,7 @@ function seed() {
   ls.exec(`CREATE TABLE companies (id TEXT PRIMARY KEY, name TEXT, market TEXT, country TEXT, region TEXT, headquarters TEXT,
             revenue_eur_m REAL, revenue_year INTEGER, employee_count INTEGER, website TEXT, linkedin_url TEXT, rank_by_revenue INTEGER, source TEXT);
            CREATE TABLE decision_makers (id TEXT PRIMARY KEY, company_id TEXT, full_name TEXT, linkedin_url TEXT, headline TEXT,
-            current_title TEXT, role_category TEXT, seniority TEXT, location TEXT, email TEXT, email_status TEXT);`);
+            current_title TEXT, role_category TEXT, seniority TEXT, location TEXT, email TEXT, email_status TEXT, about TEXT);`);
   const ins = ls.prepare('INSERT INTO companies (id,name,market,country,region,headquarters,revenue_eur_m,revenue_year) VALUES (?,?,?,?,?,?,?,?)');
   [['pt-top50-04', 'Sonae', 'Retail', 'Maia', 9947, 2024], ['pt-top50-05', 'Mota-Engil', 'Construction & Real Estate', 'Porto', 5951, 2024],
     ['pt-norte-01', 'Efacec', 'Manufacturing', 'Matosinhos', 300, 2024], ['pt-norte-27', 'ULS Braga', 'Pharma & Healthcare', 'Braga', 390.5, 2024],
@@ -25,6 +25,7 @@ function seed() {
   dm.run('dm1', 'pt-norte-01', 'Ana Exemplo', 'https://pt.linkedin.com/in/ana-exemplo', 'CIO', 'C-Level', 'ana@exemplo.pt');
   dm.run('dm2', 'pt-norte-01', 'Rui Teste', 'https://www.linkedin.com/in/rui-teste', 'Head of IT', 'Head', null);
   dm.run('dm3', 'pt-top50-04', 'Marta Demo', 'javascript:alert(1)', 'CDO', 'C-Level', null);
+  ls.prepare("INSERT INTO decision_makers (id,company_id,full_name,current_title,seniority,about) VALUES ('dm4','pt-norte-27','Diretora SI','Diretora do Serviço de Sistemas de Informação','Director','Fonte: https://www.hospitaldebraga.pt/noticias/x (2025-10-30)')").run();
 
   const ps = new Database(':memory:');
   ps.exec(`CREATE TABLE records (id TEXT PRIMARY KEY, scope TEXT, client TEXT NOT NULL, ref TEXT, status TEXT, price REAL, effort REAL,
