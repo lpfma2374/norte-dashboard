@@ -6,7 +6,7 @@
     "test": "vitest run",
     "dev": "MOCK_D1=1 node scripts/dev-server.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": { "node": "20.x" },
   "devDependencies": {
     "better-sqlite3": "^11.7.0",
     "vitest": "^2.1.9"
