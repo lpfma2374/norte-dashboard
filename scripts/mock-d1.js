@@ -1,8 +1,9 @@
 // Mock local da API HTTP do Cloudflare D1 e do R2 (testes e dev-server, sem credenciais).
-// Cada base é um SQLite em memória com o schema real e dados de exemplo.
+// Usa o SQLite nativo do Node (node:sqlite). Cada base é um SQLite em memória com o schema real e dados de exemplo.
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
+const Database = DatabaseSync;
 const { DB } = require('../api/_lib');
 
 function seed() {
@@ -63,8 +64,8 @@ function install() {
         const stmts = sql.split(/;\s*(?=(?:[^']*'[^']*')*[^']*$)/).map((s) => s.trim()).filter(Boolean);
         const result = stmts.map((s) => {
           const st = db.prepare(s);
-          const p = (params || []).map((v) => (typeof v === 'boolean' ? Number(v) : v));
-          return { results: st.reader ? st.all(...p) : (st.run(...p), []), success: true };
+          const p = (params || []).map((v) => (typeof v === 'boolean' ? Number(v) : v === undefined ? null : v));
+          return { results: st.columns().length ? st.all(...p) : (st.run(...p), []), success: true };
         });
         return new Response(JSON.stringify({ success: true, result }));
       } catch (e) {

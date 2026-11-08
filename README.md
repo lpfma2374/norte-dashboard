@@ -85,7 +85,7 @@ ou Cloudflare Access no domínio próprio, como no LeadSeeker).
 
 ```bash
 npm install
-npm test          # Vitest: API contra um mock D1/R2 em SQLite em memória + funções de formatação
+npm test          # Vitest: API contra um mock D1/R2 em SQLite em memória (node:sqlite, Node ≥ 22.5) + funções de formatação
 npm run dev       # http://localhost:3000 com dados de exemplo (MOCK_D1=1)
 ```
 

@@ -3,12 +3,11 @@
   "private": true,
   "description": "Norte Dashboard — gestão das contas das 100 maiores empresas do Norte (estático + Vercel Functions)",
   "scripts": {
-    "test": "vitest run",
+    "test": "NODE_NO_WARNINGS=1 vitest run",
     "dev": "MOCK_D1=1 node scripts/dev-server.js"
   },
   "engines": { "node": "24.x" },
   "devDependencies": {
-    "better-sqlite3": "^11.7.0",
     "vitest": "^2.1.9"
   }
 }
