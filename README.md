@@ -35,11 +35,11 @@ com os KPIs da região no header.
 
 | KPI | Cálculo |
 |---|---|
-| Atingimento do target de Sales | negócio efetivo fechado no ano do target ÷ target anual (botão *Definir target*). |
-| Net Revenue Retention | Σ negócio efetivo dos últimos 12 meses ÷ Σ volume inicial, nas contas com situação inicial registada. |
+| Atingimento do target de Sales | Σ situação atual ÷ Σ target dos planos de conta do ano corrente. Sem planos, usa o target global (botão *Target global*) e as vendas do ano. |
+| Net Revenue Retention | Σ situação atual ÷ Σ situação inicial (final do ano anterior) dos planos de conta do ano corrente. |
 | Volume do pipeline | nº e valor das propostas do PACE em carteira (em qualificação, em negociação, entregues) das contas do Norte. Papers excluídos. |
 | Conversões em venda | propostas com estado *Ganha*, valor ganho e win rate = ganhas ÷ (ganhas + perdidas). |
-| Satisfação do cliente | NPS (% promotores 9-10 − % detratores 0-6) e CSAT médio (1-5) das avaliações dos últimos 12 meses. |
+| Satisfação do cliente | NPS e CSAT das avaliações dos últimos 12 meses; com planos de conta, também a média da satisfação atual, target e inicial (0 a 10). |
 
 **Filtros:** Mercado, Sede (concelho), Empresa, Atividade (com contactos, com propostas em carteira, com negócio, com plano, com decisores, sem atividade).
 
@@ -48,13 +48,27 @@ com os KPIs da região no header.
 | Coluna | Comportamento |
 |---|---|
 | # Norte | Posição no ranking regional (azul quando a conta já tem negócio efetivo). |
-| Empresa | Clicar abre a **ficha de conta**: Plano estratégico · Volume de negócio (situação inicial, target e vendas) · Satisfação. |
+| Empresa | Clicar abre a **ficha de conta**. No separador *Plano estratégico*, a tag **Adicionar plano** cria o plano do ano (ver abaixo). A tag por baixo do nome mostra o plano do ano e o desvio face ao target. Outros separadores: Volume de negócio (vendas) e Satisfação (NPS/CSAT). |
 | Mercado | Setor. |
 | Gestão Contatos | `+` cria um registo (título, participantes, agenda com o que foi dito em cada ponto, decisões, próximos passos, data, canal, anexos). O olho lista os registos do mais recente para o mais antigo; o olho de cada registo abre a ata completa, com pré-visualização e download em PDF, edição e eliminação. |
 | Pipeline | Nº de propostas em carteira; abre a lista de propostas do PACE (abertas e fechadas), com *Registar venda* para propostas ganhas e associação/desassociação manual. |
 | Volume | Negócio efetivo registado na conta (vendas manuais e propostas convertidas). |
 | Decisores | Tag com o nº de decisores; abre a lista (nome, cargo, email quando existir); o olho abre o perfil público do LinkedIn. |
 | Experiência | Igual ao LeadSeeker: stories da Noesis no cliente, com PDF. |
+
+### Plano estratégico de conta
+
+Um plano por empresa e por ano (`account_plans`, único por `company_id` + `plan_year`), com histórico dos anos anteriores.
+
+| Campo | Significado |
+|---|---|
+| Situação inicial (€) | Volume de negócio conhecido no final do ano anterior. Pré-preenchida com a situação atual do plano do ano anterior. |
+| Situação atual (€) | Volume de negócio conhecido na data do registo. |
+| Evolução (%) | (atual − inicial) ÷ inicial. Calculada. |
+| Target (€) | Volume de negócio pretendido no final do ano. |
+| Desvio face ao target (%) | (atual − target) ÷ target. Calculado; negativo = abaixo do target. |
+| Satisfação inicial / target / atual | Escala de 0 a 10: final do ano anterior, objetivo para o final do ano e valor apurado na data do registo. |
+| Estratégia | Estado, próxima revisão, owner, tier, ambição, prioridades, objetivos, ofertas-alvo, whitespace, iniciativas e riscos. |
 
 ## 3. API
 
@@ -63,7 +77,7 @@ com os KPIs da região no header.
 | `/api/dashboard` | `GET` empresas com agregados + KPIs |
 | `/api/contacts` | `GET ?company_id=` lista · `GET ?id=` detalhe · `POST` · `PUT ?id=` · `DELETE ?id=` |
 | `/api/pipeline` | `GET ?company_id=` · `POST {action: link \| unlink \| convert, record_id, company_id}` |
-| `/api/account` | `GET ?company_id=` · `PUT {section: account \| plan}` · `POST {kind: deal \| survey}` · `DELETE &deal= \| &survey=` |
+| `/api/account` | `GET ?company_id=` (plano do ano + histórico) · `PUT {section: account \| plan}` · `POST {kind: deal \| survey}` · `DELETE &deal= \| &survey= \| &plan=` |
 | `/api/decision-makers` | `GET ?company_id=` |
 | `/api/settings` | `GET` · `PUT {sales_target_year, sales_target_eur}` |
 | `/api/files` | `POST {company_id, name, type, data(base64)}` · `GET ?key=` (redirect assinado) · `DELETE ?key=` |

@@ -85,7 +85,22 @@ td .sub,.sub{color:var(--muted);font-size:13px;margin-top:2px}
 .badge-n{display:inline-block;font-size:12px;font-weight:600;background:var(--blue-soft);color:var(--blue);border-radius:999px;padding:2px 9px;margin-left:8px}
 button.badge-n{border:none;cursor:pointer;margin-left:0}
 button.badge-n:hover{background:rgba(0,113,227,.16)}
-.plan-dot{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;margin-top:4px;background:#e8f5ee;color:var(--green)}
+.plan-dot,.plan-add{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;margin-top:5px;border:none;cursor:pointer;font-family:inherit}
+.plan-dot{background:#e8f5ee;color:var(--green)}
+.plan-add{background:var(--blue-soft);color:var(--blue)}
+.plan-add:hover,.plan-dot:hover{filter:brightness(.95)}
+.tag-btn{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;background:var(--blue-soft);color:var(--blue);border:1px solid rgba(0,113,227,.25);
+  border-radius:999px;padding:7px 16px;cursor:pointer;font-family:inherit;transition:background .15s}
+.tag-btn:hover{background:rgba(0,113,227,.16)}
+.plan-empty{padding:34px 24px}
+.plan-empty p{margin-bottom:14px;font-size:14.5px}
+.stats.two{grid-template-columns:repeat(2,1fr)}
+.stat .h{font-size:11.5px;color:var(--muted);margin-top:3px}
+.sec-h{font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.07em;margin-top:8px;padding-top:12px;border-top:1px solid var(--line)}
+.hint{font-size:12px;color:var(--muted);margin-top:5px}
+.calc{display:block;font-size:22px;font-weight:700;padding:6px 0;font-variant-numeric:tabular-nums}
+.sat3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:560px){.sat3,.stats.two{grid-template-columns:1fr}}
 
 /* Ícones redondos (+ e olho) */
 .icons{display:flex;align-items:center;gap:8px}

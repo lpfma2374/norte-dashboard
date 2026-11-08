@@ -33,7 +33,7 @@
       <div class="k-value" data-v>—</div>
       <div class="k-sub" data-s>A carregar…</div>
       <div class="k-bar"><span data-bar></span></div>
-      <button class="k-act" id="btn-target">Definir target</button>
+      <div style="display:flex;gap:14px"><button class="k-act" data-help="target">Como é calculado</button><button class="k-act" id="btn-target">Target global</button></div>
     </article>
     <article class="kpi" id="kpi-nrr">
       <div class="k-label">Net Revenue Retention</div>
@@ -83,6 +83,7 @@
           <option value="pipeline">Com propostas em carteira</option>
           <option value="volume">Com negócio efetivo</option>
           <option value="plan">Com plano estratégico</option>
+          <option value="noplan">Sem plano estratégico</option>
           <option value="decisors">Com decisores mapeados</option>
           <option value="none">Sem atividade</option>
         </select>

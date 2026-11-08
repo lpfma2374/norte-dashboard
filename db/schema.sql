@@ -5,9 +5,7 @@
 CREATE TABLE IF NOT EXISTS accounts (
   company_id TEXT PRIMARY KEY,           -- companies.id na leadseeker-db
   owner TEXT, tier TEXT,
-  baseline_volume_eur REAL,              -- situação inicial (negócio anual à entrada no dashboard) → NRR
-  baseline_year INTEGER, baseline_notes TEXT,
-  target_eur REAL,
+  baseline_volume_eur REAL, baseline_year INTEGER, baseline_notes TEXT, target_eur REAL,  -- legado: substituído por account_plans
   created_at TEXT DEFAULT (datetime('now')), updated_at TEXT
 );
 
@@ -32,12 +30,21 @@ CREATE TABLE IF NOT EXISTS deals (        -- negócio efetivo (vendas)
 );
 CREATE INDEX IF NOT EXISTS idx_deals_company ON deals(company_id, close_date);
 
-CREATE TABLE IF NOT EXISTS account_plans (
-  company_id TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS account_plans (   -- plano estratégico de conta, um por empresa e por ano
+  id TEXT PRIMARY KEY, company_id TEXT NOT NULL,
+  plan_year INTEGER NOT NULL,            -- ano do plano (target no final deste ano)
+  record_date TEXT NOT NULL,             -- data do registo (a "situação atual" refere-se a esta data)
+  initial_volume_eur REAL,               -- situação inicial: volume de negócio no final do ano anterior
+  current_volume_eur REAL,               -- situação atual: volume de negócio na data do registo
+  target_volume_eur REAL,                -- target: volume de negócio pretendido no final do ano
+  sat_initial REAL, sat_target REAL, sat_current REAL,   -- satisfação (escala 0 a 10)
   ambition TEXT, objectives TEXT, priorities TEXT, target_offers TEXT, whitespace TEXT,
   initiatives TEXT, risks TEXT, next_review TEXT,
-  status TEXT DEFAULT 'rascunho', updated_at TEXT
+  status TEXT DEFAULT 'rascunho',
+  created_at TEXT DEFAULT (datetime('now')), updated_at TEXT,
+  UNIQUE (company_id, plan_year)
 );
+CREATE INDEX IF NOT EXISTS idx_plans_year ON account_plans(plan_year);
 
 CREATE TABLE IF NOT EXISTS satisfaction (
   id TEXT PRIMARY KEY, company_id TEXT NOT NULL, survey_date TEXT NOT NULL,

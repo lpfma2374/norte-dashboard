@@ -1,10 +1,14 @@
 // Norte Dashboard — Ficha de conta (plano estratégico, volume de negócio e satisfação)
-//   GET    /api/account?company_id=X                         → { account, plan, deals, satisfaction }
-//   PUT    /api/account?company_id=X  { section:'account', owner, tier, baseline_volume_eur, baseline_year, baseline_notes, target_eur }
-//   PUT    /api/account?company_id=X  { section:'plan', ambition, objectives, priorities, target_offers, whitespace, initiatives, risks, next_review, status }
+//   GET    /api/account?company_id=X                         → { account, plan (ano corrente), plans (histórico), deals, satisfaction }
+//   PUT    /api/account?company_id=X  { section:'account', owner, tier }
+//   PUT    /api/account?company_id=X  { section:'plan', plan_year, record_date,
+//                                       initial_volume_eur, current_volume_eur, target_volume_eur,
+//                                       sat_initial, sat_target, sat_current,
+//                                       ambition, objectives, priorities, target_offers, whitespace, initiatives, risks,
+//                                       next_review, status }      → cria ou atualiza o plano desse ano
 //   POST   /api/account?company_id=X  { kind:'deal', ref, amount_eur, close_date, notes }
 //   POST   /api/account?company_id=X  { kind:'survey', survey_date, method, respondent, nps_score, csat_score, comment }
-//   DELETE /api/account?company_id=X&deal=ID | &survey=ID
+//   DELETE /api/account?company_id=X&deal=ID | &survey=ID | &plan=ID
 
 const { d1, json, readBody, query, uid, str, num, isoDate, handler, bad } = require('./_lib');
 
@@ -21,14 +25,15 @@ module.exports = handler(async (req, res) => {
   if (!company) return json(res, 404, { error: 'Empresa desconhecida.' });
 
   if (req.method === 'GET') {
-    const [acc, plan, deals, sat] = await Promise.all([
+    const year = new Date().getFullYear();
+    const [acc, plans, deals, sat] = await Promise.all([
       d1('norte', 'SELECT * FROM accounts WHERE company_id = ?', [cid]),
-      d1('norte', 'SELECT * FROM account_plans WHERE company_id = ?', [cid]),
+      d1('norte', 'SELECT * FROM account_plans WHERE company_id = ? ORDER BY plan_year DESC', [cid]),
       d1('norte', 'SELECT * FROM deals WHERE company_id = ? ORDER BY close_date DESC', [cid]),
       d1('norte', 'SELECT * FROM satisfaction WHERE company_id = ? ORDER BY survey_date DESC', [cid]),
     ]);
     return json(res, 200, {
-      company, account: acc[0] || null, plan: plan[0] || null, deals, satisfaction: sat,
+      company, account: acc[0] || null, plan: plans.find((p) => p.plan_year === year) || null, plans, year, deals, satisfaction: sat,
       options: { plan_status: PLAN_STATUS, tiers: TIERS, survey_methods: METHODS },
     });
   }
@@ -40,26 +45,36 @@ module.exports = handler(async (req, res) => {
     if (b.section === 'account') {
       const tier = str(b.tier, 40);
       if (tier && TIERS.indexOf(tier) === -1) throw bad('Tier inválido.');
-      const by = num(b.baseline_year);
-      await d1('norte',
-        `UPDATE accounts SET owner = ?, tier = ?, baseline_volume_eur = ?, baseline_year = ?, baseline_notes = ?, target_eur = ?,
-                updated_at = datetime('now') WHERE company_id = ?`,
-        [str(b.owner, 120), tier, num(b.baseline_volume_eur), by ? Math.round(by) : null, str(b.baseline_notes, 2000), num(b.target_eur), cid]);
+      await d1('norte', "UPDATE accounts SET owner = ?, tier = ?, updated_at = datetime('now') WHERE company_id = ?",
+        [str(b.owner, 120), tier, cid]);
       return json(res, 200, { saved: 'account' });
     }
     if (b.section === 'plan') {
       const status = str(b.status, 20) || 'rascunho';
       if (PLAN_STATUS.indexOf(status) === -1) throw bad('Estado do plano inválido.');
-      const f = ['ambition', 'objectives', 'priorities', 'target_offers', 'whitespace', 'initiatives', 'risks'].map((k) => str(b[k], 8000));
+      const year = Math.round(num(b.plan_year) || new Date().getFullYear());
+      if (year < 2020 || year > 2100) throw bad('Ano do plano inválido.');
+      const recordDate = isoDate(b.record_date) || new Date().toISOString().slice(0, 10);
+      const vol = ['initial_volume_eur', 'current_volume_eur', 'target_volume_eur'].map((k) => num(b[k]));
+      if (vol.some((v) => v != null && v < 0)) throw bad('Os volumes de negócio não podem ser negativos.');
+      const sat = ['sat_initial', 'sat_target', 'sat_current'].map((k) => num(b[k]));
+      if (sat.some((v) => v != null && (v < 0 || v > 10))) throw bad('A satisfação usa uma escala de 0 a 10.');
+      const txt = ['ambition', 'objectives', 'priorities', 'target_offers', 'whitespace', 'initiatives', 'risks'].map((k) => str(b[k], 8000));
+      const id = uid('pl');
       await d1('norte',
-        `INSERT INTO account_plans (company_id, ambition, objectives, priorities, target_offers, whitespace, initiatives, risks, next_review, status, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-         ON CONFLICT(company_id) DO UPDATE SET ambition = excluded.ambition, objectives = excluded.objectives,
+        `INSERT INTO account_plans (id, company_id, plan_year, record_date, initial_volume_eur, current_volume_eur, target_volume_eur,
+                                    sat_initial, sat_target, sat_current, ambition, objectives, priorities, target_offers, whitespace,
+                                    initiatives, risks, next_review, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(company_id, plan_year) DO UPDATE SET record_date = excluded.record_date,
+           initial_volume_eur = excluded.initial_volume_eur, current_volume_eur = excluded.current_volume_eur,
+           target_volume_eur = excluded.target_volume_eur, sat_initial = excluded.sat_initial, sat_target = excluded.sat_target,
+           sat_current = excluded.sat_current, ambition = excluded.ambition, objectives = excluded.objectives,
            priorities = excluded.priorities, target_offers = excluded.target_offers, whitespace = excluded.whitespace,
            initiatives = excluded.initiatives, risks = excluded.risks, next_review = excluded.next_review,
            status = excluded.status, updated_at = excluded.updated_at`,
-        [cid].concat(f, [isoDate(b.next_review), status]));
-      return json(res, 200, { saved: 'plan' });
+        [id, cid, year, recordDate].concat(vol, sat, txt, [isoDate(b.next_review), status]));
+      return json(res, 200, { saved: 'plan', plan_year: year });
     }
     throw bad('Secção desconhecida.');
   }
@@ -103,7 +118,11 @@ module.exports = handler(async (req, res) => {
       await d1('norte', 'DELETE FROM satisfaction WHERE id = ? AND company_id = ?', [q.get('survey'), cid]);
       return json(res, 200, { deleted: q.get('survey') });
     }
-    throw bad('Indica deal ou survey.');
+    if (q.get('plan')) {
+      await d1('norte', 'DELETE FROM account_plans WHERE id = ? AND company_id = ?', [q.get('plan'), cid]);
+      return json(res, 200, { deleted: q.get('plan') });
+    }
+    throw bad('Indica deal, survey ou plan.');
   }
 
   res.setHeader('Allow', 'GET, PUT, POST, DELETE');

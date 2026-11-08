@@ -1,6 +1,6 @@
 // Norte Dashboard — página principal (KPIs, filtros, lista de contas e janelas popup)
 /* global esc, sameClient, matchedBrand, buildStoryPdf, storyFileName, buildMinutesPdf, fmtEur, fmtRevenue, fmtPct, fmtDate,
-   channelLabel, todayIso, matchesActivity, toneFor, minuteFileName, CHANNEL_LABELS */
+   channelLabel, todayIso, matchesActivity, toneFor, minuteFileName, CHANNEL_LABELS, pctDelta, fmtDelta, fmtSat */
 (function () {
   'use strict';
 
@@ -124,15 +124,17 @@
     var k = DATA.kpis;
     var t = k.target;
     var el = kpi('kpi-target', t.pct == null ? '—' : fmtPct(t.pct, 1),
-      t.target_eur ? fmtEur(t.achieved_eur) + ' de ' + fmtEur(t.target_eur) + ' em ' + t.year
-        : 'Sem target definido para ' + t.year + ' · ' + fmtEur(t.achieved_eur) + ' fechados',
+      t.source === 'planos'
+        ? fmtEur(t.achieved_eur) + ' atual de ' + fmtEur(t.target_eur) + ' de target · ' + t.accounts + (t.accounts === 1 ? ' plano' : ' planos') + ' de ' + t.year
+        : (t.target_eur ? fmtEur(t.achieved_eur) + ' vendido de ' + fmtEur(t.target_eur) + ' em ' + t.year
+          : 'Sem planos de conta com target para ' + t.year),
       toneFor(t.pct, 100, 60));
     el.querySelector('[data-bar]').style.width = Math.min(100, t.pct || 0) + '%';
 
     var n = k.nrr;
     kpi('kpi-nrr', n.pct == null ? '—' : fmtPct(n.pct, 0),
-      n.accounts ? fmtEur(n.current_eur) + ' atual vs ' + fmtEur(n.baseline_eur) + ' inicial · ' + n.accounts + (n.accounts === 1 ? ' conta' : ' contas')
-        : 'Regista a situação inicial na ficha de cada conta', toneFor(n.pct, 100, 90));
+      n.accounts ? fmtEur(n.current_eur) + ' atual vs ' + fmtEur(n.baseline_eur) + ' no final de ' + (t.year - 1) + ' · ' + n.accounts + (n.accounts === 1 ? ' conta' : ' contas')
+        : 'Adiciona planos de conta com situação inicial e atual', toneFor(n.pct, 100, 90));
 
     kpi('kpi-pipeline', k.pipeline.count + '<small>' + (k.pipeline.count === 1 ? 'proposta' : 'propostas') + '</small>',
       fmtEur(k.pipeline.value_eur) + ' em carteira (em qualificação, negociação ou entregues)');
@@ -141,17 +143,28 @@
     kpi('kpi-conv', cv.won + '<small>' + (cv.won === 1 ? 'venda' : 'vendas') + '</small>',
       fmtEur(cv.won_eur) + ' ganhos · win rate ' + (cv.win_rate == null ? '—' : fmtPct(cv.win_rate)) + ' (' + cv.won + ' ganhas / ' + cv.lost + ' perdidas)');
 
-    var s = k.satisfaction;
-    kpi('kpi-sat', s.nps == null ? '—' : (s.nps > 0 ? '+' : '') + s.nps + '<small>NPS</small>',
-      s.responses ? 'CSAT ' + (s.csat == null ? '—' : s.csat.toLocaleString('pt-PT', { maximumFractionDigits: 1 }) + '/5') + ' · ' + s.responses + (s.responses === 1 ? ' resposta' : ' respostas') + ' em 12 meses'
-        : 'Sem avaliações registadas nos últimos 12 meses', s.nps == null ? '' : (s.nps >= 30 ? 'good' : s.nps >= 0 ? 'warn' : 'badv'));
+    var s = k.satisfaction, sp = s.plan || {};
+    var planLine = sp.accounts ? 'Planos: atual ' + fmtSat(sp.current) + ' · target ' + fmtSat(sp.target) + ' · inicial ' + fmtSat(sp.initial) : '';
+    if (s.nps != null) {
+      kpi('kpi-sat', (s.nps > 0 ? '+' : '') + s.nps + '<small>NPS</small>',
+        'CSAT ' + (s.csat == null ? '—' : s.csat.toLocaleString('pt-PT', { maximumFractionDigits: 1 }) + '/5') + ' · ' + s.responses + (s.responses === 1 ? ' resposta' : ' respostas') + ' em 12 meses' +
+        (planLine ? '<br>' + planLine : ''), s.nps >= 30 ? 'good' : s.nps >= 0 ? 'warn' : 'badv');
+    } else if (sp.accounts) {
+      kpi('kpi-sat', fmtSat(sp.current).replace('/10', '') + '<small>/10</small>',
+        'Média atual dos planos de conta · target ' + fmtSat(sp.target) + ' · inicial ' + fmtSat(sp.initial),
+        sp.target != null ? (sp.current >= sp.target ? 'good' : 'warn') : '');
+    } else {
+      kpi('kpi-sat', '—', 'Sem avaliações nem planos de conta com satisfação');
+    }
   }
 
   var HELP = {
     nrr: '<h2>Net Revenue Retention</h2><div class="sub">Análise do portfólio: situação inicial vs situação atual</div>' +
-      '<p>Para cada conta regista-se na ficha (separador <b>Volume de negócio</b>) o volume de negócio da <b>situação inicial</b>, o ponto de partida da conta no dashboard.</p>' +
-      '<p><b>NRR = negócio efetivo dos últimos 12 meses ÷ volume inicial</b>, somando só as contas com situação inicial registada. Acima de 100% o portfólio cresceu (expansão maior do que perdas); abaixo, está a contrair.</p>' +
-      '<p>O negócio efetivo vem das vendas registadas na conta, manualmente ou convertidas a partir de propostas ganhas no PACE.</p>',
+      '<p>Vem dos <b>planos estratégicos de conta</b> do ano corrente (clicar no nome da empresa → Adicionar plano). Cada plano regista a <b>situação inicial</b> (volume de negócio no final do ano anterior) e a <b>situação atual</b> (volume na data do registo).</p>' +
+      '<p><b>NRR = Σ situação atual ÷ Σ situação inicial</b>, somando as contas com as duas situações preenchidas. Acima de 100% o portfólio cresceu; abaixo, está a contrair.</p>',
+    target: '<h2>Atingimento do target</h2><div class="sub">Vendas face ao objetivo do ano</div>' +
+      '<p>Com planos de conta: <b>Σ situação atual ÷ Σ target</b> dos planos do ano corrente. Cada plano mostra também o desvio da conta face ao seu target.</p>' +
+      '<p>Sem planos, usa o target global (botão <b>Definir target</b>) e as vendas registadas no ano.</p>',
     pipeline: '<h2>Volume do pipeline</h2><div class="sub">Fonte: PACE (pipeline.luispedroalvim.dev)</div>' +
       '<p>Conta as propostas e serviços de IT Advisory do PACE associados às 100 empresas do Norte que ainda estão <b>em carteira</b>: em qualificação, em negociação ou entregues a aguardar decisão. Os papers de marketing ficam de fora.</p>' +
       '<p>A associação faz-se pelo nome do cliente (as mesmas regras do LeadSeeker). Quando falha, associa ou retira a proposta na janela do pipeline de cada empresa.</p>',
@@ -207,7 +220,9 @@
         '<td><span class="rank' + (c.volume_eur > 0 ? ' top' : '') + '">' + c.region_rank + '</span></td>' +
         '<td><button class="name" data-act="account" title="Abrir ficha de conta">' + txt(c.name) + '</button>' +
           '<div class="sub">' + [c.headquarters, c.revenue_eur_m ? fmtRevenue(c.revenue_eur_m) + (c.revenue_year ? ' (' + c.revenue_year + ')' : '') : null].filter(Boolean).map(esc).join(' · ') + '</div>' +
-          (c.plan_status ? '<span class="plan-dot">Plano ' + esc(c.plan_status) + '</span>' : '') + '</td>' +
+          (c.plan ? '<button class="plan-dot" data-act="account" title="Ver plano estratégico">Plano ' + c.plan.year +
+            (c.plan.deviation_pct != null ? ' · ' + fmtDelta(c.plan.deviation_pct) + ' vs target' : '') + '</button>'
+            : '<button class="plan-add" data-act="account" title="Adicionar plano estratégico">+ Plano</button>') + '</td>' +
         '<td>' + txt(c.market || '—') + '</td>' +
         '<td><div class="icons">' +
           '<button class="ic" data-act="new-contact" title="Novo registo de contacto" aria-label="Novo registo de contacto">' + ICON.plus + '</button>' +
@@ -527,7 +542,7 @@
     var current = tab || 'plan';
     function draw() {
       api('/api/account?company_id=' + encodeURIComponent(c.id)).then(function (d) {
-        var acc = d.account || {}, plan = d.plan || {}, o = d.options;
+        var o = d.options;
         var row = byId(c.id) || c;
         var tabs = [['plan', 'Plano estratégico'], ['volume', 'Volume de negócio'], ['sat', 'Satisfação']];
         setSheet(e, '<h2>' + txt(c.name) + '</h2>' +
@@ -537,8 +552,8 @@
           '<div id="tab"></div>');
         e.sheet.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { current = b.dataset.tab; draw(); }; });
         var box = e.sheet.querySelector('#tab');
-        if (current === 'plan') drawPlan(box, plan, acc, o);
-        if (current === 'volume') drawVolume(box, acc, d.deals || [], row);
+        if (current === 'plan') drawPlan(box, d, false);
+        if (current === 'volume') drawVolume(box, d.deals || []);
         if (current === 'sat') drawSat(box, d.satisfaction || [], o);
       }).catch(function (er) { setSheet(e, '<h2>' + txt(c.name) + '</h2><div class="empty">' + esc(er.message) + '</div>'); });
     }
@@ -546,58 +561,148 @@
     function ta(name, label, val, ph) {
       return '<div class="full"><label>' + label + '</label><textarea name="' + name + '" placeholder="' + esc(ph || '') + '">' + esc(val || '') + '</textarea></div>';
     }
+    function numVal(v) { return v == null ? '' : v; }
+    function deltaCls(v) { return v == null ? '' : (v >= 0 ? 'good' : 'badv'); }
+    function stat(label, value, hint, cls) {
+      return '<div class="stat"><div class="l">' + label + '</div><div class="v ' + (cls || '') + '">' + value + '</div>' +
+        (hint ? '<div class="h">' + hint + '</div>' : '') + '</div>';
+    }
+    function textSec(label, v) {
+      return v ? '<div class="sec"><div class="lbl">' + label + '</div><div class="txt">' + esc(v) + '</div></div>' : '';
+    }
 
-    function drawPlan(box, p, acc, o) {
-      box.innerHTML = '<form class="form" id="pf">' +
+    // Plano estratégico de conta: um registo por ano, com situação inicial, atual, target e satisfação.
+    function drawPlan(box, d, editing) {
+      var p = d.plan, acc = d.account || {}, o = d.options, year = d.year;
+      var history = (d.plans || []).filter(function (x) { return x.plan_year !== year; });
+      var histHtml = history.length ? '<h3>Planos anteriores</h3>' + history.map(function (h) {
+        return '<div class="item"><div class="body"><div class="t">Plano ' + h.plan_year + '</div><div class="m">' +
+          '<span class="tag plain">Inicial ' + fmtEur(h.initial_volume_eur) + '</span><span class="tag plain">Atual ' + fmtEur(h.current_volume_eur) + '</span>' +
+          '<span class="tag plain">Target ' + fmtEur(h.target_volume_eur) + '</span>' +
+          '<span class="tag plain ' + deltaCls(pctDelta(h.current_volume_eur, h.target_volume_eur)) + '">Desvio ' + fmtDelta(pctDelta(h.current_volume_eur, h.target_volume_eur)) + '</span>' +
+          '<span class="tag plain">Satisfação ' + fmtSat(h.sat_current) + '</span></div></div></div>';
+      }).join('') : '';
+
+      if (!p && !editing) {
+        box.innerHTML = '<div class="empty plan-empty"><p>Esta conta ainda não tem plano estratégico para ' + year + '.</p>' +
+          '<button class="tag-btn" id="add-plan">+ Adicionar plano</button></div>' + histHtml;
+        box.querySelector('#add-plan').onclick = function () { drawPlan(box, d, true); };
+        return;
+      }
+
+      if (!editing) {
+        var evo = pctDelta(p.current_volume_eur, p.initial_volume_eur), dev = pctDelta(p.current_volume_eur, p.target_volume_eur);
+        box.innerHTML = '<div class="bar"><div class="left"><span class="tag solid">Plano ' + p.plan_year + '</span>' +
+            '<span class="tag">' + esc(p.status || 'rascunho') + '</span><span class="tag plain">Registo de ' + fmtDate(p.record_date) + '</span>' +
+            (acc.owner ? '<span class="tag plain grey">Owner: ' + esc(acc.owner) + '</span>' : '') + (acc.tier ? '<span class="tag plain grey">' + esc(acc.tier) + '</span>' : '') + '</div>' +
+            '<button class="tag-btn" id="edit-plan">Editar plano</button></div>' +
+          '<h3>Volume de negócio</h3><div class="stats">' +
+            stat('Situação inicial', fmtEur(p.initial_volume_eur), 'Final de ' + (p.plan_year - 1)) +
+            stat('Situação atual', fmtEur(p.current_volume_eur), 'Em ' + fmtDate(p.record_date)) +
+            stat('Evolução', fmtDelta(evo), 'Atual face à inicial', deltaCls(evo)) + '</div>' +
+          '<div class="stats two">' +
+            stat('Target', fmtEur(p.target_volume_eur), 'Final de ' + p.plan_year) +
+            stat('Desvio face ao target', fmtDelta(dev), dev == null ? '' : (dev >= 0 ? 'Target atingido' : 'Faltam ' + fmtEur(p.target_volume_eur - p.current_volume_eur)), deltaCls(dev)) + '</div>' +
+          '<h3>Satisfação (0 a 10)</h3><div class="stats">' +
+            stat('Final de ' + (p.plan_year - 1), fmtSat(p.sat_initial)) +
+            stat('Target ' + p.plan_year, fmtSat(p.sat_target)) +
+            stat('Atual', fmtSat(p.sat_current), 'Em ' + fmtDate(p.record_date),
+              p.sat_current != null && p.sat_target != null ? (p.sat_current >= p.sat_target ? 'good' : 'warn') : '') + '</div>' +
+          '<div class="minute">' +
+            textSec('Ambição para a conta', p.ambition) + textSec('Prioridades e desafios do cliente', p.priorities) +
+            textSec('Objetivos', p.objectives) + textSec('Ofertas-alvo da Noesis', p.target_offers) +
+            textSec('Whitespace e oportunidades', p.whitespace) + textSec('Iniciativas e plano de ação', p.initiatives) +
+            textSec('Riscos e concorrência', p.risks) +
+            (p.next_review ? textSec('Próxima revisão', fmtDate(p.next_review)) : '') + '</div>' + histHtml;
+        box.querySelector('#edit-plan').onclick = function () { drawPlan(box, d, true); };
+        return;
+      }
+
+      // Formulário (novo plano ou edição)
+      var x = p || { plan_year: year, record_date: todayIso(), status: 'rascunho' };
+      var prev = history.filter(function (h) { return h.plan_year === year - 1; })[0];
+      if (!p && prev) { x.initial_volume_eur = prev.current_volume_eur; x.sat_initial = prev.sat_current; }
+      var salesYear = (d.deals || []).filter(function (s) { return String(s.close_date).slice(0, 4) === String(year); })
+        .reduce(function (s, v) { return s + Number(v.amount_eur); }, 0);
+      box.innerHTML = '<form class="form" id="pf" autocomplete="off">' +
+        '<div><label>Ano do plano</label><input type="number" name="plan_year" min="2020" max="2100" value="' + esc(x.plan_year) + '"' + (p ? ' readonly' : '') + '></div>' +
+        '<div><label>Data do registo</label><input type="date" name="record_date" value="' + esc(x.record_date || todayIso()) + '" required></div>' +
+        '<div class="full sec-h">Volume de negócio (€)</div>' +
+        '<div><label>Situação inicial</label><input name="initial_volume_eur" inputmode="decimal" value="' + esc(numVal(x.initial_volume_eur)) + '" placeholder="Volume no final do ano anterior"><div class="hint" data-h="ini"></div></div>' +
+        '<div><label>Situação atual</label><input name="current_volume_eur" inputmode="decimal" value="' + esc(numVal(x.current_volume_eur)) + '" placeholder="Volume na data deste registo">' +
+          '<div class="hint">' + (salesYear ? 'Vendas registadas em ' + year + ': ' + fmtEur(salesYear) : 'Volume conhecido na data do registo') + '</div></div>' +
+        '<div><label>Evolução</label><output class="calc" data-o="evo">—</output></div>' +
+        '<div></div>' +
+        '<div><label>Target</label><input name="target_volume_eur" inputmode="decimal" value="' + esc(numVal(x.target_volume_eur)) + '" placeholder="Objetivo de vendas no final do ano"><div class="hint" data-h="tgt"></div></div>' +
+        '<div><label>Desvio face ao target</label><output class="calc" data-o="dev">—</output></div>' +
+        '<div class="full sec-h">Satisfação do cliente (0 a 10)</div>' +
+        '<div class="sat3 full">' +
+          '<div><label>Satisfação inicial</label><input type="number" name="sat_initial" min="0" max="10" step="0.1" value="' + esc(numVal(x.sat_initial)) + '"><div class="hint" data-h="sini"></div></div>' +
+          '<div><label>Satisfação target</label><input type="number" name="sat_target" min="0" max="10" step="0.1" value="' + esc(numVal(x.sat_target)) + '"><div class="hint" data-h="stgt"></div></div>' +
+          '<div><label>Satisfação atual</label><input type="number" name="sat_current" min="0" max="10" step="0.1" value="' + esc(numVal(x.sat_current)) + '"><div class="hint">Apurada na data do registo</div></div>' +
+        '</div>' +
+        '<div class="full sec-h">Estratégia da conta</div>' +
         '<div><label>Estado do plano</label><select name="status">' + o.plan_status.map(function (s) {
-          return '<option' + ((p.status || 'rascunho') === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
-        '<div><label>Próxima revisão</label><input type="date" name="next_review" value="' + esc(p.next_review || '') + '"></div>' +
+          return '<option' + ((x.status || 'rascunho') === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+        '<div><label>Próxima revisão</label><input type="date" name="next_review" value="' + esc(x.next_review || '') + '"></div>' +
         '<div><label>Account owner</label><input name="owner" value="' + esc(acc.owner || '') + '" placeholder="Responsável pela conta"></div>' +
         '<div><label>Tier da conta</label><select name="tier"><option value="">—</option>' + o.tiers.map(function (t) {
           return '<option' + (acc.tier === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
-        ta('ambition', 'Ambição para a conta (12 a 36 meses)', p.ambition, 'Onde queremos estar nesta conta e com que posicionamento') +
-        ta('priorities', 'Prioridades e desafios do cliente', p.priorities, 'Agenda estratégica, dores do negócio e de TI') +
-        ta('objectives', 'Objetivos (mensuráveis)', p.objectives, 'ex.: abrir 2 novas áreas de oferta; 500 k€ de negócio em 2027') +
-        ta('target_offers', 'Ofertas-alvo da Noesis', p.target_offers, 'Ofertas e diagnósticos de entrada a posicionar') +
-        ta('whitespace', 'Whitespace e oportunidades', p.whitespace, 'Áreas do cliente onde ainda não estamos') +
-        ta('initiatives', 'Iniciativas e plano de ação', p.initiatives, 'Ação · responsável · data') +
-        ta('risks', 'Riscos e concorrência', p.risks, 'Concorrentes incumbentes, riscos de relação') +
+        ta('ambition', 'Ambição para a conta (12 a 36 meses)', x.ambition, 'Onde queremos estar nesta conta e com que posicionamento') +
+        ta('priorities', 'Prioridades e desafios do cliente', x.priorities, 'Agenda estratégica, dores do negócio e de TI') +
+        ta('objectives', 'Objetivos (mensuráveis)', x.objectives, 'ex.: abrir 2 novas áreas de oferta') +
+        ta('target_offers', 'Ofertas-alvo da Noesis', x.target_offers, 'Ofertas e diagnósticos de entrada a posicionar') +
+        ta('whitespace', 'Whitespace e oportunidades', x.whitespace, 'Áreas do cliente onde ainda não estamos') +
+        ta('initiatives', 'Iniciativas e plano de ação', x.initiatives, 'Ação · responsável · data') +
+        ta('risks', 'Riscos e concorrência', x.risks, 'Concorrentes incumbentes, riscos de relação') +
         '<div class="full err" id="pf-err"></div>' +
-        '<div class="full form-foot">' + (p.updated_at ? '<span class="sub" style="margin:0 auto 0 0">Atualizado em ' + fmtDate(p.updated_at) + '</span>' : '') +
-          '<button class="btn">Guardar plano</button></div></form>';
+        '<div class="full form-foot">' + (p ? '<button type="button" class="btn danger" id="pf-del">Eliminar plano</button><span style="flex:1"></span>' : '') +
+          '<button type="button" class="btn ghost" id="pf-cancel">Cancelar</button><button class="btn">Guardar plano</button></div></form>';
       var f = box.querySelector('#pf');
+      function recalc() {
+        var y = parseInt(f.plan_year.value, 10) || year;
+        f.querySelector('[data-h=ini]').textContent = 'Volume conhecido no final de ' + (y - 1);
+        f.querySelector('[data-h=tgt]').textContent = 'Objetivo de vendas no final de ' + y;
+        f.querySelector('[data-h=sini]').textContent = 'Conhecida no final de ' + (y - 1);
+        f.querySelector('[data-h=stgt]').textContent = 'A atingir no final de ' + y;
+        var n = function (k) { var v = String(f[k].value).replace(/\s/g, '').replace(',', '.'); return v === '' ? null : Number(v); };
+        var evo = pctDelta(n('current_volume_eur'), n('initial_volume_eur')), dev = pctDelta(n('current_volume_eur'), n('target_volume_eur'));
+        var oe = f.querySelector('[data-o=evo]'), od = f.querySelector('[data-o=dev]');
+        oe.textContent = fmtDelta(evo); oe.className = 'calc ' + deltaCls(evo);
+        od.textContent = fmtDelta(dev); od.className = 'calc ' + deltaCls(dev);
+      }
+      f.addEventListener('input', recalc); recalc();
+      f.querySelector('#pf-cancel').onclick = function () { drawPlan(box, d, false); };
+      var del = f.querySelector('#pf-del');
+      if (del) del.onclick = function () {
+        if (del.dataset.confirm !== '1') { del.dataset.confirm = '1'; del.textContent = 'Confirmar eliminação'; return; }
+        api('/api/account?company_id=' + encodeURIComponent(c.id) + '&plan=' + encodeURIComponent(p.id), { method: 'DELETE' })
+          .then(function () { toast('Plano eliminado'); refresh(); draw(); }).catch(function (er) { toast(er.message); });
+      };
       f.onsubmit = function (ev) {
         ev.preventDefault();
         var body = { section: 'plan' };
-        ['status', 'next_review', 'ambition', 'priorities', 'objectives', 'target_offers', 'whitespace', 'initiatives', 'risks']
+        ['plan_year', 'record_date', 'initial_volume_eur', 'current_volume_eur', 'target_volume_eur', 'sat_initial', 'sat_target', 'sat_current',
+          'status', 'next_review', 'ambition', 'priorities', 'objectives', 'target_offers', 'whitespace', 'initiatives', 'risks']
           .forEach(function (k) { body[k] = fieldVal(f, k); });
-        Promise.all([
-          api('/api/account?company_id=' + encodeURIComponent(c.id), { method: 'PUT', body: body }),
-          api('/api/account?company_id=' + encodeURIComponent(c.id), { method: 'PUT', body: {
-            section: 'account', owner: fieldVal(f, 'owner'), tier: fieldVal(f, 'tier'),
-            baseline_volume_eur: acc.baseline_volume_eur, baseline_year: acc.baseline_year, baseline_notes: acc.baseline_notes, target_eur: acc.target_eur } })
-        ]).then(function () { toast('Plano guardado'); refresh(); draw(); })
+        api('/api/account?company_id=' + encodeURIComponent(c.id), { method: 'PUT', body: body })
+          .then(function () {
+            return api('/api/account?company_id=' + encodeURIComponent(c.id), { method: 'PUT', body: { section: 'account', owner: fieldVal(f, 'owner'), tier: fieldVal(f, 'tier') } });
+          })
+          .then(function () { toast('Plano guardado'); refresh(); draw(); })
           .catch(function (er) { f.querySelector('#pf-err').textContent = er.message; });
       };
     }
 
-    function drawVolume(box, acc, deals, row) {
+    function drawVolume(box, deals) {
       var total = deals.reduce(function (s, x) { return s + (Number(x.amount_eur) || 0); }, 0);
       var since = new Date(); since.setMonth(since.getMonth() - 12); since = since.toISOString().slice(0, 10);
       var last12 = deals.filter(function (x) { return x.close_date >= since; }).reduce(function (s, x) { return s + Number(x.amount_eur); }, 0);
-      var nrr = acc.baseline_volume_eur > 0 ? last12 / acc.baseline_volume_eur * 100 : null;
+      var y = String(new Date().getFullYear());
+      var thisYear = deals.filter(function (x) { return String(x.close_date).slice(0, 4) === y; }).reduce(function (s, x) { return s + Number(x.amount_eur); }, 0);
       box.innerHTML = '<div class="stats">' +
-        '<div class="stat"><div class="l">Negócio efetivo total</div><div class="v">' + fmtEur(total) + '</div></div>' +
-        '<div class="stat"><div class="l">Últimos 12 meses</div><div class="v">' + fmtEur(last12) + '</div></div>' +
-        '<div class="stat"><div class="l">NRR da conta</div><div class="v ' + toneFor(nrr, 100, 90) + '">' + fmtPct(nrr) + '</div></div></div>' +
-        '<h3>Situação inicial e target</h3>' +
-        '<form class="form" id="bf">' +
-          '<div><label>Volume inicial (€/ano)</label><input name="baseline_volume_eur" inputmode="decimal" value="' + esc(acc.baseline_volume_eur == null ? '' : acc.baseline_volume_eur) + '" placeholder="Negócio anual à entrada no dashboard"></div>' +
-          '<div><label>Ano de referência</label><input name="baseline_year" type="number" min="2015" max="2100" value="' + esc(acc.baseline_year || '') + '"></div>' +
-          '<div><label>Target da conta (€)</label><input name="target_eur" inputmode="decimal" value="' + esc(acc.target_eur == null ? '' : acc.target_eur) + '"></div>' +
-          '<div><label>Notas</label><input name="baseline_notes" value="' + esc(acc.baseline_notes || '') + '" placeholder="Contratos em vigor, origem do valor"></div>' +
-          '<div class="full err" id="bf-err"></div>' +
-          '<div class="full form-foot"><button class="btn">Guardar situação inicial</button></div></form>' +
+        stat('Negócio efetivo total', fmtEur(total)) + stat('Vendas em ' + y, fmtEur(thisYear)) + stat('Últimos 12 meses', fmtEur(last12)) + '</div>' +
+        '<p class="sub">A situação inicial, a situação atual e o target da conta registam-se no separador <b>Plano estratégico</b>.</p>' +
         '<h3>Negócio efetivo (vendas)</h3>' +
         (deals.length ? deals.map(function (x) {
           return '<div class="item"><div class="body"><div class="t">' + txt(x.ref) + '</div><div class="m"><span class="tag plain">' + fmtEur(x.amount_eur) + '</span>' +
@@ -612,16 +717,6 @@
           '<div class="full"><input name="notes" placeholder="Notas (opcional)"></div>' +
           '<div class="full err" id="df-err"></div>' +
           '<div class="full form-foot"><button class="btn">Registar venda</button></div></form>';
-      var bf = box.querySelector('#bf');
-      bf.onsubmit = function (ev) {
-        ev.preventDefault();
-        api('/api/account?company_id=' + encodeURIComponent(c.id), { method: 'PUT', body: {
-          section: 'account', owner: acc.owner, tier: acc.tier,
-          baseline_volume_eur: bf.baseline_volume_eur.value, baseline_year: bf.baseline_year.value,
-          baseline_notes: bf.baseline_notes.value, target_eur: bf.target_eur.value } })
-          .then(function () { toast('Situação inicial guardada'); refresh(); draw(); })
-          .catch(function (er) { bf.querySelector('#bf-err').textContent = er.message; });
-      };
       var df = box.querySelector('#df');
       df.onsubmit = function (ev) {
         ev.preventDefault();

@@ -80,32 +80,69 @@ describe('contactos', () => {
 });
 
 describe('ficha de conta e KPIs', () => {
-  it('calcula target, NRR e satisfação', async () => {
-    await call('settings', 'PUT', '/api/settings', { sales_target_year: 2026, sales_target_eur: 1000000 });
-    await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'account', baseline_volume_eur: '100000', baseline_year: 2025 });
-    const d1 = await call('account', 'POST', '/api/account?company_id=pt-norte-01', { kind: 'deal', ref: 'Contrato AMS', amount_eur: '150 000', close_date: '2026-06-30' });
+  const Y = new Date().getFullYear();
+  it('sem planos, o target usa o target global e as vendas do ano', async () => {
+    await call('settings', 'PUT', '/api/settings', { sales_target_year: Y, sales_target_eur: 1000000 });
+    const d1 = await call('account', 'POST', '/api/account?company_id=pt-norte-01', { kind: 'deal', ref: 'Contrato AMS', amount_eur: '150 000', close_date: Y + '-06-30' });
     expect(d1.status).toBe(201);
-    const bad = await call('account', 'POST', '/api/account?company_id=pt-norte-01', { kind: 'deal', ref: 'x', amount_eur: -5, close_date: '2026-06-30' });
+    const bad = await call('account', 'POST', '/api/account?company_id=pt-norte-01', { kind: 'deal', ref: 'x', amount_eur: -5, close_date: Y + '-06-30' });
     expect(bad.status).toBe(400);
+    const k = (await call('dashboard', 'GET', '/api/dashboard')).body.kpis;
+    expect(k.target.source).toBe('vendas');
+    expect(k.target.pct).toBeCloseTo(15);
+    expect(k.nrr.pct).toBeNull();
+  });
+  it('valida o plano estratégico (estado, volumes e satisfação 0 a 10)', async () => {
+    expect((await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', status: 'xpto' })).status).toBe(400);
+    expect((await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', target_volume_eur: -1 })).status).toBe(400);
+    expect((await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', sat_target: 11 })).status).toBe(400);
+  });
+  it('cria e atualiza o plano do ano (um por empresa e ano) e calcula target, NRR e satisfação', async () => {
+    const r = await call('account', 'PUT', '/api/account?company_id=pt-norte-01', {
+      section: 'plan', plan_year: Y, record_date: Y + '-11-08', status: 'em curso',
+      initial_volume_eur: '100000', current_volume_eur: '120000', target_volume_eur: '200000',
+      sat_initial: 6.5, sat_target: 8, sat_current: 7, ambition: 'Parceiro de referência',
+    });
+    expect(r.status).toBe(200);
+    await call('account', 'PUT', '/api/account?company_id=pt-top50-04', {
+      section: 'plan', plan_year: Y, initial_volume_eur: 300000, current_volume_eur: 240000, target_volume_eur: 400000, sat_current: 9, sat_target: 9,
+    });
+    // atualização do mesmo ano não duplica
+    await call('account', 'PUT', '/api/account?company_id=pt-norte-01', {
+      section: 'plan', plan_year: Y, record_date: Y + '-11-08', status: 'em curso',
+      initial_volume_eur: 100000, current_volume_eur: 130000, target_volume_eur: 200000, sat_initial: 6.5, sat_target: 8, sat_current: 7,
+    });
+    await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', plan_year: Y - 1, current_volume_eur: 100000 });
+    const g = await call('account', 'GET', '/api/account?company_id=pt-norte-01');
+    expect(g.body.plans.map((p) => p.plan_year)).toEqual([Y, Y - 1]);
+    expect(g.body.plan.current_volume_eur).toBe(130000);
+    expect(g.body.plan.ambition).toBeNull();
+
+    const d = (await call('dashboard', 'GET', '/api/dashboard')).body;
+    const ef = d.companies.find((c) => c.id === 'pt-norte-01');
+    expect(ef.plan.evolution_pct).toBeCloseTo(30);
+    expect(ef.plan.deviation_pct).toBeCloseTo(-35);
+    const k = d.kpis;
+    expect(k.target.source).toBe('planos');
+    expect(k.target.pct).toBeCloseTo((130000 + 240000) / (200000 + 400000) * 100);
+    expect(k.nrr.pct).toBeCloseTo((130000 + 240000) / (100000 + 300000) * 100);
+    expect(k.satisfaction.plan.current).toBeCloseTo(8);
+    expect(k.satisfaction.plan.accounts).toBe(2);
+  });
+  it('regista avaliações de satisfação (NPS/CSAT)', async () => {
     await call('account', 'POST', '/api/account?company_id=pt-norte-01', { kind: 'survey', survey_date: new Date().toISOString().slice(0, 10), nps_score: 9, csat_score: 5 });
     await call('account', 'POST', '/api/account?company_id=pt-top50-04', { kind: 'survey', survey_date: new Date().toISOString().slice(0, 10), nps_score: 5 });
-    const s = await call('account', 'POST', '/api/account?company_id=pt-top50-04', { kind: 'survey', survey_date: '2026-01-01', nps_score: 11 });
-    expect(s.status).toBe(400);
+    expect((await call('account', 'POST', '/api/account?company_id=pt-top50-04', { kind: 'survey', survey_date: '2026-01-01', nps_score: 11 })).status).toBe(400);
     const k = (await call('dashboard', 'GET', '/api/dashboard')).body.kpis;
-    expect(k.target.achieved_eur).toBe(150000);
-    expect(k.target.pct).toBeCloseTo(15);
-    expect(k.nrr.pct).toBeCloseTo(150);
-    expect(k.satisfaction.nps).toBe(0);   // 1 promotor, 1 detrator
+    expect(k.satisfaction.nps).toBe(0);
     expect(k.satisfaction.csat).toBe(5);
   });
-  it('guarda o plano estratégico com estado válido', async () => {
-    const bad = await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', status: 'xpto' });
-    expect(bad.status).toBe(400);
-    await call('account', 'PUT', '/api/account?company_id=pt-norte-01', { section: 'plan', status: 'em curso', ambition: 'Parceiro de referência', next_review: '2027-01-15' });
+  it('elimina um plano', async () => {
     const g = await call('account', 'GET', '/api/account?company_id=pt-norte-01');
-    expect(g.body.plan.ambition).toBe('Parceiro de referência');
-    expect(g.body.plan.status).toBe('em curso');
-    expect(g.body.deals).toHaveLength(1);
+    const old = g.body.plans.find((p) => p.plan_year === Y - 1);
+    await call('account', 'DELETE', '/api/account?company_id=pt-norte-01&plan=' + old.id);
+    const g2 = await call('account', 'GET', '/api/account?company_id=pt-norte-01');
+    expect(g2.body.plans).toHaveLength(1);
   });
 });
 

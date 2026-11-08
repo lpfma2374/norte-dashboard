@@ -9,6 +9,12 @@ describe('format', () => {
     expect(f.fmtEur(350000)).toBe('350 k€');
     expect(f.fmtEur(null)).toBe('—');
   });
+  it('evolução e desvio em %', () => {
+    expect(f.fmtDelta(f.pctDelta(130000, 100000))).toBe('+30%');
+    expect(f.fmtDelta(f.pctDelta(130000, 200000))).toBe('-35%');
+    expect(f.pctDelta(10, 0)).toBeNull();
+    expect(f.fmtSat(7.25)).toBe('7,3/10');
+  });
   it('NPS', () => {
     expect(f.npsOf([10, 9, 7, 3])).toBe(25);
     expect(f.npsOf([])).toBeNull();

@@ -5,6 +5,20 @@
 const { d1, json, handler } = require('./_lib');
 const { WON, LOST, loadRecords, matchRecords } = require('./_pipeline');
 
+const pct = (a, b) => (a != null && b > 0 ? (a - b) / b * 100 : null);
+
+// Resumo do plano do ano para a lista: evolução face à situação inicial e desvio face ao target
+function planSummary(p) {
+  if (!p) return null;
+  return {
+    id: p.id, year: p.plan_year, status: p.status, record_date: p.record_date,
+    initial: p.initial_volume_eur, current: p.current_volume_eur, target: p.target_volume_eur,
+    evolution_pct: pct(p.current_volume_eur, p.initial_volume_eur),
+    deviation_pct: pct(p.current_volume_eur, p.target_volume_eur),
+    sat_initial: p.sat_initial, sat_target: p.sat_target, sat_current: p.sat_current,
+  };
+}
+
 function monthsAgo(n) {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
@@ -23,7 +37,8 @@ module.exports = handler(async (req, res) => {
     d1('norte', 'SELECT company_id, owner, tier, baseline_volume_eur, baseline_year, target_eur FROM accounts'),
     d1('norte', 'SELECT company_id, COUNT(*) AS n, MAX(contact_date) AS last_date FROM contacts GROUP BY company_id'),
     d1('norte', 'SELECT company_id, amount_eur, close_date, source FROM deals'),
-    d1('norte', 'SELECT company_id, status, next_review, updated_at FROM account_plans'),
+    d1('norte', `SELECT id, company_id, plan_year, record_date, status, next_review, initial_volume_eur, current_volume_eur,
+                        target_volume_eur, sat_initial, sat_target, sat_current FROM account_plans WHERE plan_year = ?`, [new Date().getFullYear()]),
     d1('norte', 'SELECT company_id, nps_score, csat_score, survey_date FROM satisfaction WHERE survey_date >= ?', [since12]),
     d1('norte', 'SELECT record_id, company_id FROM pipeline_links'),
     d1('norte', 'SELECT key, value FROM settings'),
@@ -55,7 +70,7 @@ module.exports = handler(async (req, res) => {
   });
 
   // KPIs agregados
-  let achieved = 0, baseSum = 0, curSum = 0, nBase = 0, openN = 0, openEur = 0, won = 0, wonEur = 0, lost = 0;
+  let achieved = 0, openN = 0, openEur = 0, won = 0, wonEur = 0, lost = 0;
   const npsAll = [], csatAll = [];
 
   const rows = companies.map((c, i) => {
@@ -65,7 +80,6 @@ module.exports = handler(async (req, res) => {
     const open = recs.filter((r) => r.open);
     const sa = satAgg[c.id];
     achieved += dg.year;
-    if (acc.baseline_volume_eur > 0) { nBase++; baseSum += acc.baseline_volume_eur; curSum += dg.last12; }
     openN += open.length;
     openEur += open.reduce((s, r) => s + (Number(r.price) || 0), 0);
     recs.forEach((r) => {
@@ -91,12 +105,10 @@ module.exports = handler(async (req, res) => {
       volume_eur: dg.total,
       volume_last12_eur: dg.last12,
       n_deals: dg.n,
-      baseline_volume_eur: acc.baseline_volume_eur == null ? null : acc.baseline_volume_eur,
-      target_eur: acc.target_eur == null ? null : acc.target_eur,
       owner: acc.owner || null,
       tier: acc.tier || null,
+      plan: planSummary(planM[c.id]),
       plan_status: planM[c.id] ? planM[c.id].status : null,
-      plan_next_review: planM[c.id] ? planM[c.id].next_review : null,
       n_surveys: sa ? Math.max(sa.nps.length, sa.csat.length) : 0,
     };
   });
@@ -104,19 +116,29 @@ module.exports = handler(async (req, res) => {
   const promoters = npsAll.filter((x) => x >= 9).length;
   const detractors = npsAll.filter((x) => x <= 6).length;
 
+  // Planos de conta do ano corrente: situação inicial (fim do ano anterior), atual e target
+  const withTarget = plans.filter((p) => p.target_volume_eur > 0 && p.current_volume_eur != null);
+  const withInitial = plans.filter((p) => p.initial_volume_eur > 0 && p.current_volume_eur != null);
+  const sum = (list, k) => list.reduce((s, p) => s + (Number(p[k]) || 0), 0);
+  const avg = (k) => { const v = plans.map((p) => p[k]).filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  const planTarget = sum(withTarget, 'target_volume_eur'), planCurrentT = sum(withTarget, 'current_volume_eur');
+  const planInitial = sum(withInitial, 'initial_volume_eur'), planCurrentI = sum(withInitial, 'current_volume_eur');
+
   const kpis = {
-    target: {
-      year: targetYear,
-      target_eur: targetEur,
-      achieved_eur: achieved,
+    target: withTarget.length ? {
+      source: 'planos', year: targetYear, accounts: withTarget.length,
+      target_eur: planTarget, achieved_eur: planCurrentT,
+      pct: planCurrentT / planTarget * 100,
+    } : {
+      source: 'vendas', year: targetYear, accounts: 0,
+      target_eur: targetEur, achieved_eur: achieved,
       pct: targetEur ? achieved / targetEur * 100 : null,
     },
     nrr: {
-      pct: baseSum > 0 ? curSum / baseSum * 100 : null,
-      baseline_eur: baseSum,
-      current_eur: curSum,
-      accounts: nBase,
-      window: 'últimos 12 meses',
+      pct: planInitial > 0 ? planCurrentI / planInitial * 100 : null,
+      baseline_eur: planInitial,
+      current_eur: planCurrentI,
+      accounts: withInitial.length,
     },
     pipeline: { count: openN, value_eur: openEur },
     conversions: {
@@ -128,6 +150,8 @@ module.exports = handler(async (req, res) => {
       nps: npsAll.length ? Math.round((promoters - detractors) / npsAll.length * 100) : null,
       csat: csatAll.length ? csatAll.reduce((s, x) => s + x, 0) / csatAll.length : null,
       window: 'últimos 12 meses',
+      plan: { initial: avg('sat_initial'), target: avg('sat_target'), current: avg('sat_current'),
+        accounts: plans.filter((p) => p.sat_current != null).length },
     },
   };
 

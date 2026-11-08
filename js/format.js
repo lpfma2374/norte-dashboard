@@ -32,6 +32,25 @@ function fmtDate(iso) {
   return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+// Variação percentual de "atual" face a "base" (evolução ou desvio face ao target)
+function pctDelta(current, base) {
+  if (current == null || current === '' || base == null || base === '' || isNaN(current) || isNaN(base) || Number(base) <= 0) return null;
+  return (Number(current) - Number(base)) / Number(base) * 100;
+}
+
+// +12,5% · -3% · —
+function fmtDelta(v) {
+  if (v == null || isNaN(v)) return '—';
+  var r = Math.round(v * 10) / 10;
+  return (r > 0 ? '+' : '') + r.toLocaleString('pt-PT', { maximumFractionDigits: 1 }) + '%';
+}
+
+// Satisfação numa escala de 0 a 10
+function fmtSat(v) {
+  if (v == null || v === '' || isNaN(v)) return '—';
+  return Number(v).toLocaleString('pt-PT', { maximumFractionDigits: 1 }) + '/10';
+}
+
 function channelLabel(c) { return CHANNEL_LABELS[c] || c || '—'; }
 
 function todayIso() {
@@ -46,6 +65,7 @@ function matchesActivity(c, a) {
     case 'pipeline': return c.pipeline_open > 0;
     case 'volume': return c.volume_eur > 0;
     case 'plan': return !!c.plan_status;
+    case 'noplan': return !c.plan_status;
     case 'decisors': return c.n_decisors > 0;
     case 'none': return !c.n_contacts && !c.pipeline_total && !c.volume_eur && !c.plan_status;
     default: return true;
@@ -76,5 +96,5 @@ function minuteFileName(company, c) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { fmtEur, fmtRevenue, fmtPct, fmtDate, channelLabel, todayIso, matchesActivity, toneFor, npsOf, minuteFileName, CHANNEL_LABELS };
+  module.exports = { pctDelta, fmtDelta, fmtSat, fmtEur, fmtRevenue, fmtPct, fmtDate, channelLabel, todayIso, matchesActivity, toneFor, npsOf, minuteFileName, CHANNEL_LABELS };
 }
