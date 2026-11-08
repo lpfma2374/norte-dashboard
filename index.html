@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Gestão das contas das 100 maiores empresas do Norte: contactos, pipeline, plano estratégico, volume de negócio, decisores e experiência.">
+<title>Norte Dashboard</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <span class="brand"><a href="/">Norte Dashboard</a></span>
+    <span class="links">
+      <a class="active" href="/">Contas</a>
+      <a href="https://pipeline.luispedroalvim.dev/" target="_blank" rel="noopener">Pipeline ↗</a>
+      <a href="https://leadseeker.luispedroalvim.dev/norte.html" target="_blank" rel="noopener">LeadSeeker ↗</a>
+      <a href="https://stories.luispedroalvim.dev/" target="_blank" rel="noopener">Stories ↗</a>
+    </span>
+  </div>
+</nav>
+
+<header class="hero">
+  <h1>As 100 maiores empresas do Norte. Uma conta de cada vez.</h1>
+  <p>Contactos, pipeline, plano estratégico, negócio efetivo, decisores e experiência da Noesis em cada cliente, com os KPIs da região num só lugar.</p>
+</header>
+
+<main>
+  <section class="kpis" id="kpis" aria-label="Indicadores de desempenho">
+    <article class="kpi" id="kpi-target">
+      <div class="k-label">Atingimento do target</div>
+      <div class="k-value" data-v>—</div>
+      <div class="k-sub" data-s>A carregar…</div>
+      <div class="k-bar"><span data-bar></span></div>
+      <button class="k-act" id="btn-target">Definir target</button>
+    </article>
+    <article class="kpi" id="kpi-nrr">
+      <div class="k-label">Net Revenue Retention</div>
+      <div class="k-value" data-v>—</div>
+      <div class="k-sub" data-s>A carregar…</div>
+      <button class="k-act" data-help="nrr">Como é calculado</button>
+    </article>
+    <article class="kpi" id="kpi-pipeline">
+      <div class="k-label">Volume do pipeline</div>
+      <div class="k-value" data-v>—</div>
+      <div class="k-sub" data-s>A carregar…</div>
+      <button class="k-act" data-help="pipeline">Como é calculado</button>
+    </article>
+    <article class="kpi" id="kpi-conv">
+      <div class="k-label">Conversões em venda</div>
+      <div class="k-value" data-v>—</div>
+      <div class="k-sub" data-s>A carregar…</div>
+      <button class="k-act" data-help="conv">Como é calculado</button>
+    </article>
+    <article class="kpi" id="kpi-sat">
+      <div class="k-label">Satisfação do cliente</div>
+      <div class="k-value" data-v>—</div>
+      <div class="k-sub" data-s>A carregar…</div>
+      <button class="k-act" data-help="sat">Como medimos</button>
+    </article>
+  </section>
+
+  <section class="filters" id="filtros">
+    <div class="row">
+      <div>
+        <label for="f-market">Mercado</label>
+        <select id="f-market"><option value="">Todos os mercados</option></select>
+      </div>
+      <div>
+        <label for="f-hq">Sede</label>
+        <select id="f-hq"><option value="">Todos os concelhos</option></select>
+      </div>
+      <div>
+        <label for="f-company">Empresa</label>
+        <select id="f-company"><option value="">Todas as empresas</option></select>
+      </div>
+      <div>
+        <label for="f-activity">Atividade</label>
+        <select id="f-activity">
+          <option value="">Todas as contas</option>
+          <option value="contacts">Com contactos</option>
+          <option value="pipeline">Com propostas em carteira</option>
+          <option value="volume">Com negócio efetivo</option>
+          <option value="plan">Com plano estratégico</option>
+          <option value="decisors">Com decisores mapeados</option>
+          <option value="none">Sem atividade</option>
+        </select>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="hint" id="hint">A carregar empresas…</span>
+      <button class="btn-reset" id="btn-reset">Limpar filtros</button>
+    </div>
+  </section>
+
+  <section id="contas">
+    <div class="results-head">
+      <h2 id="count">—</h2>
+      <span class="ctx" id="ctx"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th># Norte</th><th>Empresa</th><th>Mercado</th><th>Gestão Contatos</th>
+            <th>Pipeline</th><th>Volume</th><th>Decisores</th><th>Experiência</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr class="status-row"><td colspan="8">A carregar…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div id="pdfmodal" role="dialog" aria-modal="true" aria-labelledby="pdf-title">
+  <div class="pdf-sheet">
+    <div class="pdf-head">
+      <div class="pt" id="pdf-title"></div>
+      <a class="pdf-dl" id="pdf-dl" href="#" aria-disabled="true">Descarregar PDF</a>
+      <button class="close" id="pdf-close" aria-label="Fechar">×</button>
+    </div>
+    <div class="pdf-body" id="pdf-body"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<footer>Norte Dashboard <span class="sep">·</span> Noesis <span class="sep">·</span> <span id="gen"></span></footer>
+
+<script src="js/shared.js"></script>
+<script src="js/story-pdf.js"></script>
+<script src="js/minutes-pdf.js"></script>
+<script src="js/format.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
