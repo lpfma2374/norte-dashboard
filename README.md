@@ -1,5 +1,7 @@
 # Norte Dashboard
 
+**Site:** https://norte.luispedroalvim.dev (Cloudflare Access, app "Norte Dashboard": acesso exclusivo a luis.alvim@noesis.pt). O domínio `*.vercel.app` está protegido por login da Vercel.
+
 Gestão das contas das **100 maiores empresas da região Norte**: interações (contactos no formato de ata de reunião),
 pipeline de propostas, plano estratégico da conta, volume de negócio efetivo, decisores e experiência (success stories),
 com os KPIs da região no header.
