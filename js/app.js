@@ -217,7 +217,7 @@
     els.tbody.innerHTML = items.map(function (c) {
       var st = storiesFor(c.name);
       return '<tr data-id="' + esc(c.id) + '">' +
-        '<td><span class="rank' + (c.volume_eur > 0 ? ' top' : '') + '">' + c.region_rank + '</span></td>' +
+        '<td><span class="rank' + (hasActivity(c, st) ? ' top' : '') + '" title="' + (hasActivity(c, st) ? 'Conta com plano, contactos, pipeline, volume ou experiência' : 'Sem atividade registada') + '">' + c.region_rank + '</span></td>' +
         '<td><button class="name" data-act="account" title="Abrir ficha de conta">' + txt(c.name) + '</button>' +
           '<div class="sub">' + [c.headquarters, c.revenue_eur_m ? fmtRevenue(c.revenue_eur_m) + (c.revenue_year ? ' (' + c.revenue_year + ')' : '') : null].filter(Boolean).map(esc).join(' · ') + '</div>' +
           (c.plan ? '<button class="plan-dot" data-act="account" title="Ver plano estratégico">Plano ' + c.plan.year +
@@ -239,6 +239,11 @@
           ? '<button class="ver" data-act="stories">Ver</button><span class="exp-n">' + st.length + (st.length === 1 ? ' story' : ' stories') + '</span>'
           : '<button class="ver" disabled>Sem</button>') + '</td></tr>';
     }).join('');
+  }
+
+  // Círculo azul no "# Norte": basta um dos sinais (plano, contactos, pipeline, volume ou experiência)
+  function hasActivity(c, stories) {
+    return !!(c.plan || c.n_contacts > 0 || c.pipeline_total > 0 || c.volume_eur > 0 || (stories && stories.length));
   }
 
   els.tbody.addEventListener('click', function (e) {

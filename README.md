@@ -49,7 +49,7 @@ com os KPIs da região no header.
 
 | Coluna | Comportamento |
 |---|---|
-| # Norte | Posição no ranking regional (azul quando a conta já tem negócio efetivo). |
+| # Norte | Posição no ranking regional. O círculo fica azul quando a conta tem pelo menos um destes: plano estratégico, contactos, propostas no pipeline, volume de negócio ou experiência (stories). |
 | Empresa | Clicar abre a **ficha de conta**. No separador *Plano estratégico*, a tag **Adicionar plano** cria o plano do ano (ver abaixo). A tag por baixo do nome mostra o plano do ano e o desvio face ao target. Outros separadores: Volume de negócio (vendas) e Satisfação (NPS/CSAT). |
 | Mercado | Setor. |
 | Gestão Contatos | `+` cria um registo (título, participantes, agenda com o que foi dito em cada ponto, decisões, próximos passos, data, canal, anexos). O olho lista os registos do mais recente para o mais antigo; o olho de cada registo abre a ata completa, com pré-visualização e download em PDF, edição e eliminação. |
