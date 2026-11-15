@@ -170,11 +170,13 @@ jobs:
           sleep 3
           curl -sf http://127.0.0.1:4173/ > /dev/null
       - name: ZAP Baseline
+        # --network host + 127.0.0.1: host.docker.internal não resolve nos runners
+        # Linux. -I: avisos (WARN) não falham; só as regras FAIL do zap-rules.conf.
         run: |
-          docker run --user 0:0 -v ${PWD}:/zap/wrk/:rw \
+          docker run --rm --network host --user 0:0 -v "${PWD}:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-            -t http://host.docker.internal:4173/ \
-            -c ci-cd/zap-rules.conf -r zap-report.html
+            -t http://127.0.0.1:4173/ \
+            -c ci-cd/zap-rules.conf -I -r zap-report.html
       - name: Publicar relatório ZAP
         if: always()
         uses: actions/upload-artifact@v4

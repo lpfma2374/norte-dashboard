@@ -4,13 +4,17 @@
   "description": "Norte Dashboard — gestão das contas das 100 maiores empresas do Norte (estático + Vercel Functions)",
   "scripts": {
     "test": "NODE_NO_WARNINGS=1 vitest run",
-    "dev": "MOCK_D1=1 node scripts/dev-server.js"
+    "dev": "MOCK_D1=1 node scripts/dev-server.js",
+    "build": "rm -rf dist && mkdir -p dist && cp -r index.html css js dist/",
+    "e2e": "playwright test"
   },
   "engines": {
     "node": "24.x"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@vitest/coverage-v8": "^2.1.9",
+    "http-server": "^14.1.1",
     "vitest": "^2.1.9"
   }
 }
