@@ -1,0 +1,3 @@
+# Bibliotecas de terceiros minificadas (não são código do projeto)
+js/vendor/
+node_modules/

@@ -1,0 +1,9 @@
+[
+  { "type": "minCount", "value": 95, "_doc": "100 maiores empresas do Norte (leadseeker-db, region='Norte')" },
+  { "type": "maxCount", "value": 120 },
+  { "type": "nonNull", "field": "id" },
+  { "type": "unique", "field": "id" },
+  { "type": "nonNull", "field": "name" },
+  { "type": "min", "field": "revenue_eur_m", "value": 0 },
+  { "type": "min", "field": "n_decisors", "value": 0 }
+]

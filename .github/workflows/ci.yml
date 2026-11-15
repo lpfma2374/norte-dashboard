@@ -1,0 +1,244 @@
+# =============================================================================
+# Pipeline CI/CD v2 — custo zero, zero contas externas OBRIGATÓRIAS.
+#
+# O que mudou face à v1 (SonarCloud obrigatório):
+#   - Qualidade estática: ESLint --max-warnings 0 (salta sem config)
+#   - Segurança: gitleaks (segredos no histórico). CodeQL apenas se o repo for público
+#     (privados de conta pessoal não têm code scanning — requer GHAS, org-only)
+#   - Cobertura: gate nativo do Vitest (sem Codecov/Sonar)
+#   - NOVIDADE: Data Quality declarativa contra a API de dados (read-only)
+#   - SonarCloud REMOVIDO (17/09/2026): falhas 500 do serviço + gates já
+#     cobertos por ESLint/CodeQL/gitleaks. Testes de carga passam a k6.
+#   - NOVIDADE: k6 smoke/load contra a API read-only (job performance-k6)
+#
+# Setup por repo (~5 min), ver README.md:
+#   1. data-quality/expectations.json com as regras do teu dataset
+#   2. Settings → Secrets and variables → Actions → Variables:
+#      DATA_QUALITY_URL (endpoint read-only) e ENABLE_APP_JOBS=true
+#         (liga e2e/dast/lighthouse quando a app existir no repo)
+#   3. Opcional: COVERAGE_THRESHOLD (ex.: 60) liga o gate de cobertura;
+#      K6_TARGET_URL liga o smoke de carga do k6
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # E2E de escrita só em PRs, contra staging — isolamento total de escritas.
+  PLAYWRIGHT_RUN_WRITES: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+  STAGING_API_BASE: ${{ secrets.STAGING_API_BASE }}
+  STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
+  # Data quality: URL pública read-only; vazia = job salta.
+  DATA_QUALITY_URL: ${{ vars.DATA_QUALITY_URL }}
+  # Caminho até ao array na resposta: /api/dashboard devolve { companies: [...] }
+  DATA_QUALITY_RECORDS_PATH: ${{ vars.DATA_QUALITY_RECORDS_PATH || 'companies' }}
+  # k6 smoke de carga: URL read-only; vazia = job salta.
+  K6_TARGET_URL: ${{ vars.K6_TARGET_URL }}
+  # Jobs de app desligados por omissão até a app existir no repo.
+  ENABLE_APP_JOBS: ${{ vars.ENABLE_APP_JOBS }}
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. Testes unitários (Vitest) + gate de cobertura opcional
+  # --------------------------------------------------------------------------
+  unit:
+    name: Testes unitários (Vitest)
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Guards no MESMO step: exit 0 num step à parte não salta os seguintes.
+      - name: Vitest + gate de cobertura opcional
+        run: |
+          test -f package.json || { echo "::notice::sem package.json — job saltado"; exit 0; }
+          npm ci
+          npx vitest run --coverage --passWithNoTests
+          if [ -n "$COVERAGE_THRESHOLD" ]; then
+            echo "Cobertura mínima exigida: ${COVERAGE_THRESHOLD}%"
+            python3 -c "
+          import json, os, sys
+          s = json.load(open('coverage/coverage-summary.json'))
+          pct = s.get('total', {}).get('lines', {}).get('pct', 0)
+          print('Cobertura de linhas: %s%% (mínimo %s%%)' % (pct, os.environ['COVERAGE_THRESHOLD']))
+          sys.exit(0 if pct >= float(os.environ['COVERAGE_THRESHOLD']) else 1)
+          "
+          fi
+
+  # --------------------------------------------------------------------------
+  # 2. Qualidade estática (ESLint) + segredos (gitleaks) — zero contas
+  # --------------------------------------------------------------------------
+  quality:
+    name: Qualidade estática + segredos (ESLint + gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: ESLint (falha com avisos; salta sem config)
+        run: |
+          test -f package.json || { echo "::notice::sem package.json — ESLint saltado"; exit 0; }
+          npm ci --no-audit --no-fund
+          if [ -f eslint.config.js ] || [ -f .eslintrc.json ] || [ -f .eslintrc.js ]; then
+            npx eslint . --max-warnings 0
+          else
+            echo "::notice::sem config ESLint — criar eslint.config.js para ligar o gate estático"
+          fi
+      - name: gitleaks — segredos no histórico e no diff
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 3. Data Quality (v2) — expectativas declarativas contra a API read-only
+  # --------------------------------------------------------------------------
+  data-quality:
+    name: Qualidade dos dados (read-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Correr expectativas declarativas
+        run: |
+          if [ -z "$DATA_QUALITY_URL" ]; then
+            echo "::notice::DATA_QUALITY_URL não definida (repo variable) — job saltado"
+            exit 0
+          fi
+          node scripts/data-quality.mjs
+
+  # --------------------------------------------------------------------------
+  # 4. Testes funcionais (Playwright) — dual-mode
+  #    main: leituras contra produção/build local
+  #    PR:   escritas contra staging (guardas anti-segredo-em-falta no spec)
+  # --------------------------------------------------------------------------
+  e2e:
+    name: Testes funcionais (Playwright)
+    needs: [unit]
+    if: ${{ vars.ENABLE_APP_JOBS == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Arrancar servidor local
+        run: |
+          npx --yes http-server dist -p 4173 -s &
+          sleep 3
+          curl -sf http://127.0.0.1:4173/ > /dev/null
+      - name: Playwright
+        env:
+          E2E_API_BASE: ${{ github.event_name == 'pull_request' && secrets.STAGING_API_BASE || '' }}
+        run: npx playwright test
+      # TODO por repo: guardar relatórios como artifact se quiseres histórico
+
+  # --------------------------------------------------------------------------
+  # 5. DAST (OWASP ZAP Baseline) contra build local — zero tráfego em produção
+  #    Gotchas: regras TAB-separated; correr com --user 0:0; -r relativo a /zap/wrk
+  # --------------------------------------------------------------------------
+  dast-zap:
+    name: DAST (OWASP ZAP Baseline)
+    if: ${{ vars.ENABLE_APP_JOBS == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Arrancar servidor local
+        run: |
+          npx --yes http-server dist -p 4173 -s &
+          sleep 3
+          curl -sf http://127.0.0.1:4173/ > /dev/null
+      - name: ZAP Baseline
+        run: |
+          docker run --user 0:0 -v ${PWD}:/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://host.docker.internal:4173/ \
+            -c ci-cd/zap-rules.conf -r zap-report.html
+      - name: Publicar relatório ZAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report.html
+          if-no-files-found: ignore
+
+  # --------------------------------------------------------------------------
+  # 6. Performance (Lighthouse CI) com budgets — ci-cd/lighthouserc.json
+  # --------------------------------------------------------------------------
+  performance-lighthouse:
+    name: Performance (Lighthouse CI)
+    if: ${{ vars.ENABLE_APP_JOBS == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Lighthouse CI
+        run: |
+          npx --yes http-server dist -p 4173 -s &
+          sleep 3
+          npx --yes @lhci/cli autorun --config=ci-cd/lighthouserc.json
+
+  # --------------------------------------------------------------------------
+  # 7. Testes de carga (k6 smoke) — rampa suave contra a API read-only
+  #    Definir K6_TARGET_URL (repo variable); thresholds no ci-cd/k6/smoke.js
+  # --------------------------------------------------------------------------
+  performance-k6:
+    name: Testes de carga (k6 smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 smoke (salta sem K6_TARGET_URL)
+        run: |
+          if [ -z "$K6_TARGET_URL" ]; then
+            echo "::notice::K6_TARGET_URL não definida (repo variable) — job saltado"
+            exit 0
+          fi
+          k6 run ci-cd/k6/smoke.js
+
+  # --- v2.1 (17/09/2026): SAST com Semgrep OSS (substituto do CodeQL em repos privados) ---
+  # Code scanning em repos privados de conta pessoal exige GitHub Advanced Security
+  # (produto de organização, pago). O Semgrep OSS cobre SAST a custo zero e sem conta
+  # externa. Gate: falha apenas em findings severity=ERROR (regras OWASP Top 10 +
+  # JavaScript). WARNINGs ficam informativos.
+  sast-semgrep:
+    name: SAST (Semgrep OSS)
+    runs-on: ubuntu-latest
+    env:
+      SEMGREP_SEND_METRICS: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install semgrep
+      - name: Semgrep — inventário completo (não bloqueia)
+        run: semgrep scan --config p/owasp-top-ten --config p/javascript --quiet
+      - name: Semgrep — gate (falha em findings ERROR)
+        run: semgrep scan --config p/owasp-top-ten --config p/javascript --severity ERROR --error
