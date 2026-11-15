@@ -5,13 +5,9 @@
 name: Data Quality (produção)
 
 on:
-  # NÃO agendado no template: este repo não tem dataset próprio (só o
-  # expectations.example.json), pelo que o cron disparava uma corrida
-  # condenada a falhar todos os dias. Ao aplicar a um projeto real:
-  # definir a var DATA_QUALITY_URL, copiar expectations.example.json ->
-  # expectations.json e descomentar o cron com offset próprio por repo.
-  # schedule:
-  #   - cron: "17 5 * * *"
+  # Validação noturna da produção (offset próprio por repo, UTC).
+  schedule:
+    - cron: "31 5 * * *"
   workflow_dispatch:
 
 # Permissões explícitas: sem isto, o GITHUB_TOKEN pode vir read-only e a
@@ -31,9 +27,16 @@ jobs:
           node-version: 24
       - name: Correr expectativas de qualidade dos dados
         env:
-          DATA_QUALITY_URL: ${{ vars.DATA_QUALITY_URL }}
+          DATA_QUALITY_URL: ${{ vars.DATA_QUALITY_URL || 'https://norte-dashboard.vercel.app/api/dashboard' }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          REQUIRE_BYPASS: 'true'
           DATA_QUALITY_RECORDS_PATH: ${{ vars.DATA_QUALITY_RECORDS_PATH || 'companies' }}
-        run: node scripts/data-quality.mjs
+        run: |
+          if [ "$REQUIRE_BYPASS" = "true" ] && [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "::notice::secret VERCEL_AUTOMATION_BYPASS_SECRET em falta (API protegida pelo Vercel) — job saltado"
+            exit 0
+          fi
+          node scripts/data-quality.mjs
       - name: Abrir/atualizar issue se falhou
         if: failure()
         uses: actions/github-script@v7

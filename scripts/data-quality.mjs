@@ -47,6 +47,11 @@ async function main() {
       "User-Agent":
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 data-quality/1.0",
       Accept: "application/json",
+      // Vercel Deployment Protection: o CI passa com o segredo de
+      // "Protection Bypass for Automation"; a API continua privada.
+      ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+        ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+        : {}),
     },
   });
   if (!res.ok) {

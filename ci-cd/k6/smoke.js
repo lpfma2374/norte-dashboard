@@ -21,7 +21,11 @@ export const options = {
 
 export default function () {
   const r = http.get(URL_, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 k6-smoke/1.0' },
+    headers: Object.assign(
+      { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 k6-smoke/1.0' },
+      // Vercel Deployment Protection: segredo de bypass (a API continua privada)
+      __ENV.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': __ENV.VERCEL_AUTOMATION_BYPASS_SECRET } : {},
+    ),
   });
   check(r, { 'GET API → 200': (r) => r.status === 200 });
   sleep(1);

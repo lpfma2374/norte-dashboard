@@ -36,11 +36,14 @@ env:
   STAGING_API_BASE: ${{ secrets.STAGING_API_BASE }}
   STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
   # Data quality: URL pública read-only; vazia = job salta.
-  DATA_QUALITY_URL: ${{ vars.DATA_QUALITY_URL }}
+  # API de produção (read-only). Protegida pelo Vercel: o CI usa o segredo de bypass.
+  DATA_QUALITY_URL: ${{ vars.DATA_QUALITY_URL || 'https://norte-dashboard.vercel.app/api/dashboard' }}
   # Caminho até ao array na resposta: /api/dashboard devolve { companies: [...] }
   DATA_QUALITY_RECORDS_PATH: ${{ vars.DATA_QUALITY_RECORDS_PATH || 'companies' }}
   # k6 smoke de carga: URL read-only; vazia = job salta.
-  K6_TARGET_URL: ${{ vars.K6_TARGET_URL }}
+  K6_TARGET_URL: ${{ vars.K6_TARGET_URL || 'https://norte-dashboard.vercel.app/api/dashboard' }}
+  VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+  REQUIRE_BYPASS: 'true'
   # Jobs de app desligados por omissão até a app existir no repo.
   ENABLE_APP_JOBS: ${{ vars.ENABLE_APP_JOBS }}
 
@@ -114,6 +117,10 @@ jobs:
         run: |
           if [ -z "$DATA_QUALITY_URL" ]; then
             echo "::notice::DATA_QUALITY_URL não definida (repo variable) — job saltado"
+            exit 0
+          fi
+          if [ "$REQUIRE_BYPASS" = "true" ] && [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "::notice::secret VERCEL_AUTOMATION_BYPASS_SECRET em falta (API protegida pelo Vercel) — job saltado"
             exit 0
           fi
           node scripts/data-quality.mjs
@@ -220,6 +227,10 @@ jobs:
         run: |
           if [ -z "$K6_TARGET_URL" ]; then
             echo "::notice::K6_TARGET_URL não definida (repo variable) — job saltado"
+            exit 0
+          fi
+          if [ "$REQUIRE_BYPASS" = "true" ] && [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "::notice::secret VERCEL_AUTOMATION_BYPASS_SECRET em falta (API protegida pelo Vercel) — job saltado"
             exit 0
           fi
           k6 run ci-cd/k6/smoke.js
