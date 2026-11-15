@@ -5,9 +5,7 @@
 name: Data Quality (produção)
 
 on:
-  # Validação noturna da produção (offset próprio por repo, UTC).
-  schedule:
-    - cron: "31 5 * * *"
+  # Sem agendamento: corre só manualmente (Actions → Run workflow).
   workflow_dispatch:
 
 # Permissões explícitas: sem isto, o GITHUB_TOKEN pode vir read-only e a
